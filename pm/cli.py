@@ -2,13 +2,14 @@ import typer
 from rich.console import Console
 from pm.utils.__init__ import init as init_polymath
 from pm.utils.doctor import doctor as polymath_doctor
+from pm.indexer.indexer import index_repo
 app = typer.Typer(help="Polymath — ask anything about any codebase")
 console = Console()
 
 @app.command()
 def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
     """Set active repository"""
-    console.print(f"[green]Setting active repo: {path}[/green]")
+    index_repo(path)
 
 @app.command()
 def cat(file: str = typer.Argument(..., help="File path, optionally with line range e.g. auth.py:23-45")):

@@ -23,7 +23,7 @@ def load_gitignore(root: Path) -> pathspec.PathSpec:
         return pathspec.PathSpec.from_lines("gitwildmatch", lines)
     return pathspec.PathSpec.from_lines("gitwildmatch", [])
     
-def crawl(root: Path):
+def crawl(root: Path) -> list[Path]:
     gitignore = load_gitignore(root)
     files = []
 

@@ -55,13 +55,27 @@ def process(filename):
 
 ---
 
+## Requirements
+
+- **Python 3.11+**
+- **Docker Desktop** — [download here](https://www.docker.com/products/docker-desktop/)
+- **Gemini API key** — free at [aistudio.google.com](https://aistudio.google.com)
+- macOS or Linux
+
+---
+
 ## Installation
 
-### Prerequisites
-- Python 3.11+
-- Docker Desktop
+### Recommended — pipx (works on any Mac)
 
-### Install
+```bash
+brew install pipx
+pipx install polymath-cli
+```
+
+pipx handles Python version management automatically. No need to worry about which Python version you have.
+
+### Alternative — pip (requires Python 3.11+)
 
 ```bash
 pip install polymath-cli
@@ -69,16 +83,44 @@ pip install polymath-cli
 
 ### First time setup
 
+Make sure Docker Desktop is running, then:
+
 ```bash
 pm init
 ```
 
-This spins up a local Postgres and Qdrant instance via Docker. Run once, never again.
+This will:
+1. Ask for your Gemini API key (get one free at [aistudio.google.com](https://aistudio.google.com))
+2. Create `~/.polymath/` config directory
+3. Spin up local Postgres and Qdrant via Docker
+4. Write your config to `~/.polymath/.env`
+
+Run once, never again.
 
 ### Health check
 
 ```bash
 pm doctor
+```
+
+All three should be green before using Polymath.
+
+---
+
+## Quick Start
+
+```bash
+# index a repo
+pm cd .                                      # index current directory
+pm cd https://github.com/pallets/click       # clone and index a public repo
+
+# ask questions
+pm ask "how does authentication work?"
+pm ask "where is the database connection set up?"
+
+# read code
+pm cat src/auth.py:23-45                     # read specific lines
+pm find "jwt"                                # find all mentions of jwt
 ```
 
 ---
@@ -180,7 +222,7 @@ polymath/
     vector/
       store.py       # Qdrant operations + BGE embeddings
     utils/
-      init.py        # pm init — Docker setup
+      init.py        # pm init — Docker setup + API key prompt
       doctor.py      # pm doctor — health checks
       state.py       # active repo tracking via ~/.polymath/.env
 ```
@@ -224,6 +266,30 @@ Get a free Gemini API key at [aistudio.google.com](https://aistudio.google.com).
 
 ---
 
+## Troubleshooting
+
+**`pm init` fails with Docker error**
+Make sure Docker Desktop is running before running `pm init`.
+
+**`pm doctor` shows Postgres not running**
+Run `pm init` again — it will restart the Docker containers without overwriting your config.
+
+**Python version error during install**
+Use pipx instead:
+```bash
+brew install pipx
+pipx install polymath-cli
+```
+
+**Command not found after install**
+Add pipx to your PATH:
+```bash
+pipx ensurepath
+source ~/.zshrc
+```
+
+---
+
 ## Roadmap
 
 - [ ] Tree-sitter AST chunking — chunk at function/class boundaries for better context
@@ -239,8 +305,8 @@ Get a free Gemini API key at [aistudio.google.com](https://aistudio.google.com).
 ## Contributing
 
 ```bash
-git clone https://github.com/yourname/polymath
-cd polymath
+git clone https://github.com/Samarthpande1510/Polymath
+cd Polymath
 uv install
 pm init
 pm cd .

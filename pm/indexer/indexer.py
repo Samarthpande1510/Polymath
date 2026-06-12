@@ -3,7 +3,7 @@ from pm.indexer.crawler import crawl
 from pm.indexer.chunker import chunk_file, detect_language
 from pm.vector.store import init_collection, get_embedding, store_embedding
 from pm.db.database import LocalSession
-from pm.db.queries import create_repo, create_file, create_chunk, get_repo_by_path
+from pm.db.queries import create_repo, create_file, create_chunk, get_repo_by_path, delete_repo
 from pm.db.models import Repo
 from datetime import datetime
 from rich.console import Console
@@ -22,7 +22,7 @@ def index_repo(path: str, url: str = None) -> Repo:
             console.print(f"[yellow]'{name}' already indexed — switching to it.[/yellow]")
             set_active_repo(existing.id, existing.name)
             return existing
-        
+
         console.print(f"[bold]Indexing [green]{name}[/green]...[/bold]")
         repo = create_repo(db, name, str(root), url)
         init_collection()
@@ -39,6 +39,9 @@ def index_repo(path: str, url: str = None) -> Repo:
                 progress.update(task, description=f"Indexing [cyan]{f.name}[/cyan]")
                 file = create_file(db, repo.id, str(f), detect_language(f))
                 chunks = chunk_file(f)
+                if not chunks:
+                    progress.advance(task)
+                    continue
                 for chunk in chunks:
                     chunk_record = create_chunk(
                         db,
@@ -71,3 +74,19 @@ def index_repo(path: str, url: str = None) -> Repo:
     finally:
         db.close()
 
+def reindex_repo(repo_id: int, path: str, name: str):
+    from pm.db.queries import delete_repo_data
+    from pm.vector.store import delete_repo_vectors
+
+    db = LocalSession()
+    try:
+        delete_repo_data(db, repo_id)
+        delete_repo(db, repo_id)
+        try:
+            delete_repo_vectors(repo_id)
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+    return index_repo(path)

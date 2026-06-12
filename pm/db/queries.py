@@ -25,6 +25,8 @@ def get_all_repos(db) -> list[Repo]:
 
 def delete_repo(db, repo_id: int) -> None:
     remove = db.query(Repo).filter(Repo.id == repo_id).first()
+    if not remove:
+        return
     db.delete(remove)
     db.commit()
 

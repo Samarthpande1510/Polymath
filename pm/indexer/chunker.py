@@ -37,13 +37,15 @@ def chunk_file(file_path: Path) -> list[dict]:
         content = file_path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return []
+    
+    if '\x00' in content:
+        return []
 
     lines = content.splitlines()
     if not lines:
         return []
 
     language = detect_language(file_path)
-
     return fallback_chunk(lines)
 
 if __name__ == "__main__":

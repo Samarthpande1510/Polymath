@@ -1,7 +1,6 @@
 from pathlib import Path
 from pm.indexer.crawler import crawl
 from pm.indexer.chunker import chunk_file, detect_language
-from pm.vector.store import init_collection, get_embedding, store_embedding
 from pm.db.database import LocalSession
 from pm.db.queries import create_repo, create_file, create_chunk, get_repo_by_path, delete_repo
 from pm.db.models import Repo
@@ -9,7 +8,7 @@ from datetime import datetime
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from pm.utils.state import set_active_repo
-
+from pm.vector.store import init_collection, get_embedding, store_embedding, get_embeddings_batch
 console = Console()
 
 def index_repo(path: str, url: str = None) -> Repo:
@@ -42,7 +41,12 @@ def index_repo(path: str, url: str = None) -> Repo:
                 if not chunks:
                     progress.advance(task)
                     continue
-                for chunk in chunks:
+                
+                # batch embed all chunks in this file at once
+                texts = [chunk["content"] for chunk in chunks]
+                vectors = get_embeddings_batch(texts)
+                
+                for chunk, vector in zip(chunks, vectors):
                     chunk_record = create_chunk(
                         db,
                         file_id=file.id,
@@ -52,7 +56,6 @@ def index_repo(path: str, url: str = None) -> Repo:
                         end_line=chunk["end_line"],
                         file_path=str(f)
                     )
-                    vector = get_embedding(chunk["content"])
                     store_embedding(chunk_record.id, repo.id, vector, {
                         "file_path": str(f),
                         "language": detect_language(f) or "unknown",

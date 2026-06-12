@@ -35,7 +35,11 @@ def get_embedding(text: str, is_query: bool = False) -> list[float]:
     return _get_model().encode(text).tolist()
 
 def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
-    return _get_model().encode(texts, batch_size=32, show_progress_bar=False).tolist()
+    return _get_model().encode(
+        texts,
+        batch_size=32,
+        show_progress_bar=False
+    ).tolist()
 
 def store_embedding(chunk_id: int, repo_id: int, vector: list[float], payload: dict):
     _get_client().upsert(

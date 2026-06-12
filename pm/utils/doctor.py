@@ -22,7 +22,11 @@ def check_docker() -> bool:
 
 def check_postgres() -> bool:
     try:
+        load_env() 
         DATABASE_URL = os.getenv("DATABASE_URL")
+        if not DATABASE_URL:
+            console.print("[red]✗ Postgres: DATABASE_URL not set. Run 'pm init' first.[/red]")
+            return False
         engine = create_engine(DATABASE_URL)
         with engine.connect() as conn:
             console.print("[green]✓ Postgres is running[/green]")

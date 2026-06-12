@@ -1,18 +1,20 @@
 import typer
 from rich.console import Console
-from pm.utils.__init__ import init as init_polymath
-from pm.utils.doctor import doctor as polymath_doctor
-from pm.indexer.indexer import index_repo
-from pm.agent.ask import ask as ask_question
-from pm.db.queries import get_all_repos,delete_repo,delete_repo_data,get_repo_by_name,get_recent_conversation
-from pm.vector.store import delete_repo_vectors
-from pm.db.database import LocalSession
-from pm.utils.state import get_active_repo
-from pm.db.models import File, Chunk,Conversation
-
 
 app = typer.Typer(help="Polymath — ask anything about any codebase")
 console = Console()
+
+@app.command()
+def init():
+    """First time setup — spins up Docker, Postgres, Qdrant"""
+    from pm.utils.init import init as init_polymath
+    init_polymath()
+
+@app.command()
+def doctor():
+    """Check if everything is running correctly"""
+    from pm.utils.doctor import doctor as polymath_doctor
+    polymath_doctor()
 
 @app.command()
 def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
@@ -26,69 +28,30 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
         repos_dir = Path.home() / ".polymath" / "repos"
         repos_dir.mkdir(parents=True, exist_ok=True)
         clone_path = repos_dir / repo_name
-
         if clone_path.exists():
             console.print(f"[yellow]'{repo_name}' already cloned — indexing.[/yellow]")
         else:
             console.print(f"[bold]Cloning [green]{repo_name}[/green]...[/bold]")
-            result = subprocess.run(
-                ["git", "clone", path, str(clone_path)],
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["git", "clone", path, str(clone_path)], capture_output=True, text=True)
             if result.returncode != 0:
                 console.print(f"[red]✗ Clone failed: {result.stderr}[/red]")
                 return
             console.print(f"[green]✓ Cloned to ~/.polymath/repos/{repo_name}[/green]")
-
         index_repo(str(clone_path), url=path)
     else:
         index_repo(path)
 
 @app.command()
-def cat(file: str = typer.Argument(..., help="File path, optionally with line range e.g. auth.py:23-45")):
-    """Read a file with syntax highlighting"""
-    from rich.syntax import Syntax
-    from pathlib import Path
-
-    if ":" in file:
-        path_str, line_range = file.rsplit(":", 1)
-        if "-" in line_range:
-            start, end = map(int, line_range.split("-"))
-        else:
-            start = end = int(line_range)
-    else:
-        path_str = file
-        start = end = None
-
-    path = Path(path_str)
-    if not path.exists():
-        console.print(f"[red]✗ File not found: {path_str}[/red]")
-        return
-
-    content = path.read_text()
-    
-    if start and end:
-        lines = content.splitlines()
-        content = "\n".join(lines[start-1:end])
-
-    syntax = Syntax(
-        content,
-        path.suffix.lstrip(".") or "text",
-        line_numbers=True,
-        start_line=start or 1,
-        theme="monokai"
-    )
-    console.print(syntax)
-
-@app.command()
 def ask(question: str = typer.Argument(..., help="Question to ask about the codebase")):
     """Ask a question about the active repository"""
+    from pm.agent.ask import ask as ask_question
     ask_question(question)
 
 @app.command()
 def ls():
     """List all indexed repositories"""
+    from pm.db.database import LocalSession
+    from pm.db.queries import get_all_repos
     db = LocalSession()
     try:
         repos = get_all_repos(db)
@@ -103,12 +66,16 @@ def ls():
 @app.command()
 def status():
     """Show active repo and current context"""
+    from pm.db.database import LocalSession
+    from pm.db.models import File, Chunk
+    from pm.utils.state import get_active_repo
     db = LocalSession()
     try:
         active = get_active_repo()
         if not active:
             console.print("[yellow]No active repo. Run 'pm cd <path>' first.[/yellow]")
-        repo_id,repo_name = active
+            return
+        repo_id, repo_name = active
         file_count = db.query(File).filter(File.repo_id == repo_id).count()
         chunk_count = db.query(Chunk).filter(Chunk.repo_id == repo_id).count()
         console.print(f"[bold]Active repo:[/bold] [green]{repo_name}[/green]")
@@ -120,14 +87,17 @@ def status():
 @app.command()
 def rm(repo: str = typer.Argument(..., help="Repo name to remove")):
     """Remove an indexed repository"""
+    from pm.db.database import LocalSession
+    from pm.db.queries import get_repo_by_name, delete_repo_data, delete_repo
+    from pm.vector.store import delete_repo_vectors
     db = LocalSession()
     try:
-        repo_record = get_repo_by_name(db,repo)
+        repo_record = get_repo_by_name(db, repo)
         if not repo_record:
             console.print(f"[red]✗ Repo '{repo}' not found. Run 'pm ls' to see indexed repos.[/red]")
             return
-        delete_repo_data(db,repo_record.id)
-        delete_repo(db,repo_record.id)
+        delete_repo_data(db, repo_record.id)
+        delete_repo(db, repo_record.id)
         delete_repo_vectors(repo_record.id)
         console.print(f"[green]✓ Removed '{repo}' successfully[/green]")
     finally:
@@ -135,19 +105,23 @@ def rm(repo: str = typer.Argument(..., help="Repo name to remove")):
 
 @app.command()
 def refresh():
-    from pm.indexer.indexer import reindex_repo
     """Re-index the active repository"""
+    from pm.db.database import LocalSession
+    from pm.db.queries import get_repo_by_name
+    from pm.indexer.indexer import reindex_repo
+    from pm.utils.state import get_active_repo
     db = LocalSession()
     try:
         active = get_active_repo()
         if not active:
-           console.print("[yellow]No active repo. Run 'pm cd <path>' first.[/yellow]")
-           return 
-        repo_id, repo_name = active 
-        repo = get_repo_by_name(db,repo_name)
-        reindex_repo(repo_id,repo.path,repo_name)
+            console.print("[yellow]No active repo. Run 'pm cd <path>' first.[/yellow]")
+            return
+        repo_id, repo_name = active
+        repo = get_repo_by_name(db, repo_name)
+        path = repo.path
     finally:
         db.close()
+    reindex_repo(repo_id, path, repo_name)
 
 @app.command()
 def find(query: str = typer.Argument(..., help="Keyword to search for")):
@@ -156,7 +130,6 @@ def find(query: str = typer.Argument(..., help="Keyword to search for")):
     from pm.db.models import Chunk
     from pm.utils.state import get_active_repo
     from rich.syntax import Syntax
-
     db = LocalSession()
     try:
         active = get_active_repo()
@@ -164,16 +137,13 @@ def find(query: str = typer.Argument(..., help="Keyword to search for")):
             console.print("[red]✗ No active repo. Run 'pm cd' first.[/red]")
             return
         repo_id, repo_name = active
-
         results = db.query(Chunk).filter(
             Chunk.repo_id == repo_id,
             Chunk.content.ilike(f"%{query}%")
         ).limit(10).all()
-
         if not results:
             console.print(f"[yellow]No results found for '{query}'[/yellow]")
             return
-
         console.print(f"\n[bold]Found {len(results)} results for '[green]{query}[/green]'[/bold]\n")
         for r in results:
             console.print(f"[cyan]{r.file_path}[/cyan] lines {r.start_line}-{r.end_line}")
@@ -184,43 +154,69 @@ def find(query: str = typer.Argument(..., help="Keyword to search for")):
         db.close()
 
 @app.command()
+def cat(file: str = typer.Argument(..., help="File path, optionally with line range e.g. auth.py:23-45")):
+    """Read a file with syntax highlighting"""
+    from rich.syntax import Syntax
+    from pathlib import Path
+    if ":" in file:
+        path_str, line_range = file.rsplit(":", 1)
+        if "-" in line_range:
+            start, end = map(int, line_range.split("-"))
+        else:
+            start = end = int(line_range)
+    else:
+        path_str = file
+        start = end = None
+    path = Path(path_str)
+    if not path.exists():
+        console.print(f"[red]✗ File not found: {path_str}[/red]")
+        return
+    content = path.read_text()
+    if start and end:
+        lines = content.splitlines()
+        content = "\n".join(lines[start-1:end])
+    syntax = Syntax(content, path.suffix.lstrip(".") or "text", line_numbers=True, start_line=start or 1, theme="monokai")
+    console.print(syntax)
+
+@app.command()
 def explain(file: str = typer.Argument(..., help="File to explain")):
     """Explain an entire file"""
-    console.print(f"[green]Explaining: {file}[/green]")
+    from pm.agent.ask import ask as ask_question
+    from pathlib import Path
+    path = Path(file)
+    if not path.exists():
+        console.print(f"[red]✗ File not found: {file}[/red]")
+        return
+    content = path.read_text()
+    ask_question(f"Explain this entire file in detail:\n\n```\n{content}\n```")
 
 @app.command()
 def diff():
     """Explain the last git commit"""
     import subprocess
-    from pm.agent.ask import ask
-
-    result = subprocess.run(
-        ["git", "diff", "HEAD~1", "HEAD"],
-        capture_output=True,
-        text=True
-    )
-
+    from pm.agent.ask import ask as ask_question
+    result = subprocess.run(["git", "diff", "HEAD~1", "HEAD"], capture_output=True, text=True)
     if result.returncode != 0:
         console.print("[red]✗ Not a git repo or no commits yet.[/red]")
         return
-
     if not result.stdout:
         console.print("[yellow]No changes in last commit.[/yellow]")
         return
-
-    question = f"Explain what changed in this git diff and why these changes were made:\n\n```diff\n{result.stdout[:3000]}\n```"
-    ask(question)
+    ask_question(f"Explain what changed in this git diff and why:\n\n```diff\n{result.stdout[:3000]}\n```")
 
 @app.command()
 def history():
     """Show conversation history"""
+    from pm.db.database import LocalSession
+    from pm.db.queries import get_recent_conversation
+    from pm.utils.state import get_active_repo
     db = LocalSession()
     try:
         active = get_active_repo()
         if not active:
             console.print("[red]✗ No active repo. Run 'pm cd' first.[/red]")
             return
-        repo_id,repo_name = active
+        repo_id, repo_name = active
         convos = get_recent_conversation(db, repo_id=repo_id, limit=20)
         if not convos:
             console.print("[yellow]No conversation history yet.[/yellow]")
@@ -232,17 +228,19 @@ def history():
     finally:
         db.close()
 
-
 @app.command()
 def clear():
     """Clear conversation history"""
+    from pm.db.database import LocalSession
+    from pm.db.models import Conversation
+    from pm.utils.state import get_active_repo
     db = LocalSession()
     try:
         active = get_active_repo()
         if not active:
             console.print("[red]✗ No active repo. Run 'pm cd' first.[/red]")
             return
-        repo_id,repo_name = active
+        repo_id, repo_name = active
         db.query(Conversation).filter(Conversation.repo_id == repo_id).delete()
         db.commit()
         console.print(f"[green]✓ Cleared conversation history for '{repo_name}'[/green]")
@@ -256,7 +254,6 @@ def save(name: str = typer.Argument(..., help="Name for the saved conversation")
     from pm.db.queries import get_recent_conversation
     from pm.utils.state import get_active_repo
     from pathlib import Path
-
     db = LocalSession()
     try:
         active = get_active_repo()
@@ -268,32 +265,15 @@ def save(name: str = typer.Argument(..., help="Name for the saved conversation")
         if not convos:
             console.print("[yellow]No conversation history to save.[/yellow]")
             return
-
         output = f"# Polymath — {repo_name}\n\n"
         for c in reversed(convos):
             role = "**You**" if c.role == "user" else "**Polymath**"
             output += f"{role}\n\n{c.content}\n\n---\n\n"
-
         path = Path(f"{name}.md")
         path.write_text(output)
         console.print(f"[green]✓ Saved to {path}[/green]")
     finally:
         db.close()
-
-@app.command()
-def init():
-    """First time setup — spins up Docker, Postgres, Qdrant"""
-    init_polymath()
-
-@app.command()
-def doctor():
-    """Check if everything is running correctly"""
-    polymath_doctor()
-
-@app.command()
-def share():
-    """Generate shareable link for active repo"""
-    console.print("[green]Generating share link...[/green]")
 
 @app.command()
 def export():
@@ -302,7 +282,6 @@ def export():
     from pm.db.queries import get_recent_conversation
     from pm.utils.state import get_active_repo
     import subprocess
-
     db = LocalSession()
     try:
         active = get_active_repo()
@@ -314,16 +293,19 @@ def export():
         if not convos:
             console.print("[yellow]No conversation history to export.[/yellow]")
             return
-
         output = f"# Polymath — {repo_name}\n\n"
         for c in reversed(convos):
             role = "**You**" if c.role == "user" else "**Polymath**"
             output += f"{role}\n\n{c.content}\n\n---\n\n"
-
         subprocess.run(["pbcopy"], input=output.encode())
         console.print("[green]✓ Conversation copied to clipboard[/green]")
     finally:
         db.close()
+
+@app.command()
+def share():
+    """Generate shareable link for active repo"""
+    console.print("[green]Coming soon — web interface in development[/green]")
 
 if __name__ == "__main__":
     app()

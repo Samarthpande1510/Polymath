@@ -5,15 +5,22 @@ from pathlib import Path
 from pm.db.models import Base
 import os
 
-env_path = Path.home() / ".polymath" / ".env"
-load_dotenv(env_path)
+def _get_engine():
+    load_dotenv(Path.home() / ".polymath" / ".env")
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        raise RuntimeError("Polymath not initialized. Run 'pm init' first.")
+    return create_engine(url)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL)
-LocalSession = sessionmaker(autoflush=False, autocommit=False, bind=engine)
+def get_session():
+    return sessionmaker(autoflush=False, autocommit=False, bind=_get_engine())()
+
+class LocalSession:
+    def __new__(cls):
+        return get_session()
 
 def get_db():
-    db = LocalSession()
+    db = get_session()
     try:
         yield db
     finally:

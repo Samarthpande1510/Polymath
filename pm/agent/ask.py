@@ -14,9 +14,10 @@ import time
 
 console = Console()
 load = Path.home() / ".polymath" / ".env"
-load_dotenv(load)
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+def _get_client():
+    load_dotenv(Path.home() / ".polymath" / ".env")
+    return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def ask(question: str):
     db = LocalSession()
@@ -76,6 +77,7 @@ CODE CONTEXT:
 {context}{history_text}"""
 
                 full_text = ""
+                client = _get_client()
                 with Live(console=console, refresh_per_second=10) as live:
                     for chunk in client.models.generate_content_stream(
                         model="gemini-2.5-flash",

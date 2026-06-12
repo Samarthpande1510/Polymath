@@ -1,12 +1,12 @@
 from pathlib import Path
 import subprocess
 from rich.console import Console
-import os
-from dotenv import load_dotenv
+import typer
 
 console = Console()
 
 config_file = Path.home() / ".polymath"
+
 DOCKER_COMPOSE = """services:
   polymath-db:
     image: postgres:16
@@ -31,20 +31,20 @@ volumes:
   polymath_qdrant:
 """
 
-ENV_CONTENT = f"""DATABASE_URL=postgresql://polymath:polymath@localhost:5433/polymath
-QDRANT_HOST=localhost
-QDRANT_PORT=6334
-GROQ_API_KEY={os.getenv("GROQ_API_KEY")}
-GEMINI_API_KEY={os.getenv("GEMINI_API_KEY")}
-"""
-
 def init():
     first_time = not (config_file / "docker-compose.yml").exists()
-    
-    if first_time:
+    env_missing = not (config_file / ".env").exists()
+
+    if first_time or env_missing:
+        gemini_key = typer.prompt("Enter your Gemini API key (get one free at aistudio.google.com)")
         config_file.mkdir(parents=True, exist_ok=True)
         (config_file / "docker-compose.yml").write_text(DOCKER_COMPOSE)
-        (config_file / ".env").write_text(ENV_CONTENT)
+        env_content = f"""DATABASE_URL=postgresql://polymath:polymath@localhost:5433/polymath
+QDRANT_HOST=localhost
+QDRANT_PORT=6334
+GEMINI_API_KEY={gemini_key}
+"""
+        (config_file / ".env").write_text(env_content)
         console.print("[bold green]First time setup — initializing Polymath...[/bold green]")
     else:
         console.print("[bold green]Starting Polymath services...[/bold green]")
@@ -63,7 +63,4 @@ def init():
             console.print(f"[red]✗ Error: {result.stderr}[/red]")
         return
 
-    if first_time:
-        console.print("[green]✓ Polymath initialized![/green]")
-    else:
-        console.print("[green]✓ Polymath services running![/green]")
+    console.print("[green]✓ Polymath ready![/green]")

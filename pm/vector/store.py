@@ -8,10 +8,7 @@ _client = None
 _model = None
 
 def _get_client():
-    global _client
-    if _client is None:
-        _client = QdrantClient(host="localhost", port=6334)
-    return _client
+    return QdrantClient(host="localhost", port=6334)
 
 def _get_model():
     global _model

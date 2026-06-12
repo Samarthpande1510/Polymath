@@ -8,6 +8,7 @@ from pm.db.models import Repo
 from datetime import datetime
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from pm.utils.state import set_active_repo
 
 console = Console()
 
@@ -16,8 +17,14 @@ def index_repo(path: str, url: str = None) -> Repo:
     name = root.name
     db = LocalSession()
     try:
+        existing = get_repo_by_path(db, str(root))
+        if existing:
+            console.print(f"[yellow]'{name}' already indexed — switching to it.[/yellow]")
+            set_active_repo(existing.id, existing.name)
+            return existing
+        
         console.print(f"[bold]Indexing [green]{name}[/green]...[/bold]")
-        repo = create_repo(db, name, path, url)
+        repo = create_repo(db, name, str(root), url)
         init_collection()
         files = crawl(root)
         console.print(f"Found [green]{len(files)}[/green] files")
@@ -39,7 +46,8 @@ def index_repo(path: str, url: str = None) -> Repo:
                         repo_id=repo.id,
                         content=chunk["content"],
                         start_line=chunk["start_line"],
-                        end_line=chunk["end_line"]
+                        end_line=chunk["end_line"],
+                        file_path=str(f)
                     )
                     vector = get_embedding(chunk["content"])
                     store_embedding(chunk_record.id, repo.id, vector, {
@@ -52,6 +60,7 @@ def index_repo(path: str, url: str = None) -> Repo:
 
         repo.indexed_at = datetime.utcnow()
         db.commit()
+        set_active_repo(repo.id, repo.name)
         console.print(f"[green]✓ Indexed {name} successfully[/green]")
         return repo
 

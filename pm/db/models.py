@@ -32,6 +32,7 @@ class Chunk(Base):
     start_line = Column(Integer, nullable=False)
     end_line = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    file_path = Column(String)
 
 class Conversation(Base):
     __tablename__ = "conversations"

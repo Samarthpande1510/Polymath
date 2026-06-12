@@ -40,13 +40,14 @@ def create_file(db, repo_id: int, path: str, language: str) -> File:
 
     return files
 
-def create_chunk(db, file_id: int, repo_id: int, content: str, start_line: int, end_line: int) -> Chunk:
+def create_chunk(db, file_id, repo_id, content, start_line, end_line, file_path=""):
     chunks = Chunk(
-        file_id = file_id,
-        repo_id = repo_id,
-        content = content,
-        start_line = start_line,
-        end_line = end_line
+        file_id=file_id,
+        repo_id=repo_id,
+        content=content,
+        start_line=start_line,
+        end_line=end_line,
+        file_path=file_path
     )
     db.add(chunks)
     db.commit()

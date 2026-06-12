@@ -3,6 +3,7 @@ from rich.console import Console
 from pm.utils.__init__ import init as init_polymath
 from pm.utils.doctor import doctor as polymath_doctor
 from pm.indexer.indexer import index_repo
+from pm.agent.ask import ask as ask_question
 app = typer.Typer(help="Polymath — ask anything about any codebase")
 console = Console()
 
@@ -19,7 +20,7 @@ def cat(file: str = typer.Argument(..., help="File path, optionally with line ra
 @app.command()
 def ask(question: str = typer.Argument(..., help="Question to ask about the codebase")):
     """Ask a question about the active repository"""
-    console.print(f"[green]Asking: {question}[/green]")
+    ask_question(question)
 
 @app.command()
 def ls():

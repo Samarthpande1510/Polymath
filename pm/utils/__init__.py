@@ -1,7 +1,8 @@
 from pathlib import Path
 import subprocess
 from rich.console import Console
-
+import os
+from dotenv import load_dotenv
 
 console = Console()
 
@@ -30,18 +31,24 @@ volumes:
   polymath_qdrant:
 """
 
-ENV_CONTENT = """DATABASE_URL=postgresql://polymath:polymath@localhost:5433/polymath
+ENV_CONTENT = f"""DATABASE_URL=postgresql://polymath:polymath@localhost:5433/polymath
 QDRANT_HOST=localhost
 QDRANT_PORT=6334
+GROQ_API_KEY={os.getenv("GROQ_API_KEY")}
+GEMINI_API_KEY={os.getenv("GEMINI_API_KEY")}
 """
 
 def init():
-    if (config_file / "docker-compose.yml").exists():
-        console.print("[yellow]Polymath already initialized. Run 'pm doctor' to check status.[/yellow]")
-        return
-    config_file.mkdir(parents=True, exist_ok=True)
-    (config_file / "docker-compose.yml").write_text(DOCKER_COMPOSE)
-    (config_file / ".env").write_text(ENV_CONTENT)
+    first_time = not (config_file / "docker-compose.yml").exists()
+    
+    if first_time:
+        config_file.mkdir(parents=True, exist_ok=True)
+        (config_file / "docker-compose.yml").write_text(DOCKER_COMPOSE)
+        (config_file / ".env").write_text(ENV_CONTENT)
+        console.print("[bold green]First time setup — initializing Polymath...[/bold green]")
+    else:
+        console.print("[bold green]Starting Polymath services...[/bold green]")
+
     with console.status("[bold green]Starting Docker containers..."):
         result = subprocess.run(
             ["docker", "compose", "-f", str(config_file / "docker-compose.yml"), "up", "-d"],
@@ -55,5 +62,8 @@ def init():
         else:
             console.print(f"[red]✗ Error: {result.stderr}[/red]")
         return
-    
-    console.print("[green]✓ Polymath initialized![/green]")
+
+    if first_time:
+        console.print("[green]✓ Polymath initialized![/green]")
+    else:
+        console.print("[green]✓ Polymath services running![/green]")

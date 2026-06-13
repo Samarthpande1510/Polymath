@@ -50,17 +50,13 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
     from pm.indexer.indexer import index_repo
     from pathlib import Path
     import subprocess
-    from pathlib import Path
 
-    if not path.startswith("https://") and not path.startswith("git@"):
-        resolved = Path(path).resolve()
-    if not resolved.exists():
-        console.print(f"[red]✗ Directory not found: {path}[/red]")
-        return
-    if not resolved.is_dir():
-        console.print(f"[red]✗ Not a directory: {path}[/red]")
-        return
     if path.startswith("https://") or path.startswith("git@"):
+        import shutil
+        if not shutil.which("git"):
+            console.print("[red]✗ Git is not installed. Download from https://git-scm.com/download/win[/red]")
+            return
+        
         repo_name = path.rstrip("/").split("/")[-1].replace(".git", "")
         repos_dir = Path.home() / ".polymath" / "repos"
         repos_dir.mkdir(parents=True, exist_ok=True)
@@ -69,14 +65,25 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
             console.print(f"[yellow]'{repo_name}' already cloned — indexing.[/yellow]")
         else:
             console.print(f"[bold]Cloning [green]{repo_name}[/green]...[/bold]")
-            result = subprocess.run(["git", "clone", path, str(clone_path)], capture_output=True, text=True)
+            result = subprocess.run(
+                ["git", "clone", path, str(clone_path)],
+                capture_output=True,
+                text=True
+            )
             if result.returncode != 0:
                 console.print(f"[red]✗ Clone failed: {result.stderr}[/red]")
                 return
             console.print(f"[green]✓ Cloned to ~/.polymath/repos/{repo_name}[/green]")
         index_repo(str(clone_path), url=path)
     else:
-        index_repo(path)
+        resolved = Path(path).resolve()
+        if not resolved.exists():
+            console.print(f"[red]✗ Directory not found: {path}[/red]")
+            return
+        if not resolved.is_dir():
+            console.print(f"[red]✗ Not a directory: {path}[/red]")
+            return
+        index_repo(str(resolved))
 
 @app.command()
 def ask(question: str = typer.Argument(..., help="Question to ask about the codebase")):
@@ -306,7 +313,7 @@ def save(name: str = typer.Argument(..., help="Name for the saved conversation")
         for c in reversed(convos):
             role = "**You**" if c.role == "user" else "**Polymath**"
             output += f"{role}\n\n{c.content}\n\n---\n\n"
-        path = Path(f"{name}.md")
+        path = Path.home() / f"{name}.md"
         path.write_text(output)
         console.print(f"[green]✓ Saved to {path}[/green]")
     finally:
@@ -318,7 +325,8 @@ def export():
     from pm.db.database import LocalSession
     from pm.db.queries import get_recent_conversation
     from pm.utils.state import get_active_repo
-    import subprocess
+    import pyperclip
+
     db = LocalSession()
     try:
         active = get_active_repo()
@@ -334,7 +342,7 @@ def export():
         for c in reversed(convos):
             role = "**You**" if c.role == "user" else "**Polymath**"
             output += f"{role}\n\n{c.content}\n\n---\n\n"
-        subprocess.run(["pbcopy"], input=output.encode())
+        pyperclip.copy(output)
         console.print("[green]✓ Conversation copied to clipboard[/green]")
     finally:
         db.close()

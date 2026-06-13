@@ -1,182 +1,13 @@
-<div align="center">
-
 # Polymath
 
-**Ask anything about any codebase. Instant answers, zero data leaks.**
+Ask anything about any codebase. Local, private, fast.
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-
-</div>
-
----
-
-## What is Polymath?
-
-Polymath is a local-first codebase intelligence CLI. Point it at any repository — public or private — and ask questions in plain English. It indexes your code into a local vector database, retrieves the most relevant chunks, and answers with exact file citations and line numbers.
-
-**Your code never leaves your machine.**
-
-```bash
+```
 pm cd https://github.com/pallets/click
 pm ask "how does argument parsing work?"
 ```
 
-```
-## Argument Parsing in Click
-
-Click's argument parsing is handled in `src/click/core.py` lines 1089-1134.
-When a command is invoked, `Command.make_context()` creates a `Context` object
-and calls `Command.parse_args()` which delegates to each parameter's
-`Parameter.consume_value()` method...
-
-## How to use this in your codebase
-
-from click import argument, command
-
-@command()
-@argument('filename')
-def process(filename):
-    click.echo(f'Processing {filename}')
-```
-
----
-
-## Why Polymath?
-
-| Feature | Polymath | GitHub Copilot | ChatGPT |
-|--------|----------|----------------|---------|
-| Works on private repos | ✅ Local only | ❌ Sends to GitHub | ❌ Sends to OpenAI |
-| No internet required | ✅ Fully offline | ❌ Cloud dependent | ❌ Cloud dependent |
-| Remembers conversation | ✅ Per-repo history | ❌ No memory | ❌ Resets each chat |
-| Any language | ✅ All languages | ✅ All languages | ✅ All languages |
-| Free | ✅ Always | ❌ $10/month | ❌ $20/month |
-| Cites exact lines | ✅ Always | ❌ No citations | ❌ No citations |
-
----
-
-## Requirements
-
-- **Python 3.11+**
-- **Docker Desktop** — [download here](https://www.docker.com/products/docker-desktop/)
-- **Gemini API key** — free at [aistudio.google.com](https://aistudio.google.com)
-- macOS or Linux
-
----
-
-## Installation
-
-### Recommended — pipx (works on any Mac)
-
-```bash
-brew install pipx
-pipx install polymath-cli
-```
-
-pipx handles Python version management automatically. No need to worry about which Python version you have.
-
-### Alternative — pip (requires Python 3.11+)
-
-```bash
-pip install polymath-cli
-```
-
-### First time setup
-
-Make sure Docker Desktop is running, then:
-
-```bash
-pm init
-```
-
-This will:
-1. Ask for your Gemini API key (get one free at [aistudio.google.com](https://aistudio.google.com))
-2. Create `~/.polymath/` config directory
-3. Spin up local Postgres and Qdrant via Docker
-4. Write your config to `~/.polymath/.env`
-
-Run once, never again.
-
-### Health check
-
-```bash
-pm doctor
-```
-
-All three should be green before using Polymath.
-
----
-
-## Quick Start
-
-```bash
-# index a repo
-pm cd .                                      # index current directory
-pm cd https://github.com/pallets/click       # clone and index a public repo
-
-# ask questions
-pm ask "how does authentication work?"
-pm ask "where is the database connection set up?"
-
-# read code
-pm cat src/auth.py:23-45                     # read specific lines
-pm find "jwt"                                # find all mentions of jwt
-```
-
----
-
-## Commands
-
-### Indexing
-
-```bash
-pm cd .                                      # index current directory
-pm cd /path/to/project                       # index any local path
-pm cd https://github.com/user/repo           # clone and index a public repo
-pm refresh                                   # re-index the active repo
-pm rm <repo-name>                            # remove an indexed repo
-```
-
-### Asking Questions
-
-```bash
-pm ask "how does authentication work?"
-pm ask "where is the database connection set up?"
-pm ask "what happens when a user signs up?"
-pm explain src/auth.py                       # explain an entire file
-pm diff                                      # explain the last git commit
-```
-
-### Reading Code
-
-```bash
-pm cat src/auth.py                           # read file with syntax highlighting
-pm cat src/auth.py:23-45                     # read specific lines
-pm find "jwt"                                # find all chunks containing a keyword
-```
-
-### Conversation
-
-```bash
-pm history                                   # show conversation history
-pm clear                                     # clear conversation history
-pm save my-session                           # save conversation to markdown
-pm export                                    # copy conversation to clipboard
-```
-
-### Repo Management
-
-```bash
-pm ls                                        # list all indexed repos
-pm status                                    # show active repo and stats
-```
-
-### Setup
-
-```bash
-pm init                                      # first time setup
-pm doctor                                    # check Docker, Postgres, Qdrant health
-```
+Polymath indexes your code into a local vector database and answers questions in plain English with exact file citations and line numbers. Your code never leaves your machine.
 
 ---
 
@@ -186,20 +17,190 @@ pm doctor                                    # check Docker, Postgres, Qdrant he
 pm cd <repo>
   → crawl all files (respects .gitignore)
   → chunk code at 50-line boundaries
-  → embed each chunk with BGE-base-en-v1.5
-  → store vectors in local Qdrant
-  → store metadata in local Postgres
+  → embed each chunk with Gemini embeddings
+  → store vectors locally in Qdrant
+  → store metadata in SQLite
 
 pm ask "question"
   → embed the question
-  → search Qdrant for top 8 most relevant chunks
-  → fetch full chunk content from Postgres
+  → search local Qdrant for top 8 relevant chunks
+  → fetch full chunk content from SQLite
   → inject context + conversation history into prompt
-  → stream answer from Gemini 2.5 Flash
+  → stream answer from Gemini 2.5 Flash or Ollama
   → save to conversation history
 ```
 
-All vector search and storage happens locally. Only the question + relevant code snippets are sent to Gemini to generate the answer.
+Embeddings and vector search run entirely on your machine. Only the question + relevant code snippets are sent to the LLM.
+
+---
+
+## Requirements
+
+- Python 3.11+
+- Gemini API key — free at [aistudio.google.com](https://aistudio.google.com)
+- For Ollama mode: [Ollama](https://ollama.com) installed and running
+
+No Docker. No Postgres. No extra services.
+
+---
+
+## Install
+
+### Recommended
+
+```bash
+brew install pipx
+pipx install polymath-cli
+pm init
+```
+
+### pip
+
+```bash
+pip install polymath-cli
+pm init
+```
+
+### Binary (no Python needed)
+
+Download `pm` from [GitHub Releases](https://github.com/Samarthpande1510/Polymath/releases), then:
+
+```bash
+chmod +x pm
+mv pm /usr/local/bin/pm
+pm init
+```
+
+---
+
+## First time setup
+
+Run once:
+
+```bash
+pm init
+```
+
+This asks you to choose an AI provider:
+
+```
+Choose AI provider for answering questions (gemini/ollama): gemini
+Enter your Gemini API key: ...
+✓ API key valid
+✓ Database ready
+✓ Polymath ready!
+```
+
+Everything is stored in `~/.polymath/`.
+
+---
+
+## AI providers
+
+### Gemini (default)
+
+Uses Gemini 2.5 Flash for generation and Gemini embeddings for indexing.
+
+- One API key, free at [aistudio.google.com](https://aistudio.google.com)
+- Free tier: 20 questions/day per key
+- Enable billing for unlimited usage — costs ~$0 for personal use
+
+```bash
+pm init   # choose gemini
+```
+
+### Ollama (fully offline)
+
+Uses a local model for generation. No API key needed for questions after initial setup.
+
+```bash
+pm init   # choose ollama
+```
+
+Recommended models for code Q&A:
+
+| Model | Size | Best for |
+|-------|------|----------|
+| `codellama` | 4GB | Code explanation, best quality |
+| `qwen2.5-coder:1.5b` | 1GB | Code focused, fast |
+| `mistral` | 4GB | General purpose, good at instructions |
+| `llama3.2:1b` | 1GB | Tiny and fast |
+
+```bash
+ollama pull codellama
+pm config OLLAMA_MODEL codellama
+pm ask "how does authentication work?"
+```
+
+Note: Ollama mode still uses Gemini embeddings for indexing (`pm cd`). Embeddings only run once per repo — after that, everything is fully offline.
+
+Switch providers anytime:
+
+```bash
+pm config LLM_PROVIDER ollama
+pm config LLM_PROVIDER gemini
+pm config OLLAMA_MODEL codellama
+pm config GEMINI_API_KEY your-new-key
+```
+
+---
+
+## Commands
+
+### Setup
+
+```bash
+pm init                    # first time setup
+pm doctor                  # check database, Qdrant, Ollama health
+```
+
+### Indexing
+
+```bash
+pm cd .                                     # index current directory
+pm cd /path/to/project                      # index any local path
+pm cd https://github.com/user/repo          # clone and index a public repo
+pm refresh                                  # re-index the active repo
+pm rm <repo-name>                           # remove an indexed repo
+pm ls                                       # list all indexed repos
+pm status                                   # show active repo and stats
+pm pwd                                      # show active repo path
+```
+
+### Asking questions
+
+```bash
+pm ask "how does authentication work?"
+pm ask "where is the database connection set up?"
+pm ask "what happens when a user signs up?"
+pm explain src/auth.py                      # explain an entire file
+pm diff                                     # explain the last git commit
+```
+
+### Reading code
+
+```bash
+pm cat src/auth.py                          # read file with syntax highlighting
+pm cat src/auth.py:23-45                    # read specific lines
+pm find "jwt"                               # find all chunks containing a keyword
+```
+
+### Conversation
+
+```bash
+pm history                                  # show conversation history
+pm clear                                    # clear conversation history
+pm save my-session                          # save conversation to markdown
+pm export                                   # copy conversation to clipboard
+```
+
+### Config
+
+```bash
+pm config LLM_PROVIDER ollama
+pm config OLLAMA_MODEL codellama
+pm config GEMINI_API_KEY your-key
+```
 
 ---
 
@@ -208,97 +209,101 @@ All vector search and storage happens locally. Only the question + relevant code
 ```
 polymath/
   pm/
-    cli.py           # Typer commands — the user interface
+    cli.py              # Typer commands
     agent/
-      ask.py         # retrieval + LLM + streaming answer
+      ask.py            # retrieval + LLM + streaming
     indexer/
-      crawler.py     # file discovery, respects .gitignore
-      chunker.py     # 50-line chunks with overlap
-      indexer.py     # orchestrates the full indexing pipeline
+      crawler.py        # file discovery, respects .gitignore
+      chunker.py        # 50-line chunks with overlap
+      indexer.py        # orchestrates indexing pipeline
     db/
-      models.py      # SQLAlchemy: repos, files, chunks, conversations
-      queries.py     # all Postgres operations
-      database.py    # engine + session factory
+      models.py         # SQLAlchemy models
+      queries.py        # database operations
+      database.py       # SQLite engine
     vector/
-      store.py       # Qdrant operations + BGE embeddings
+      store.py          # embedded Qdrant + Gemini embeddings
     utils/
-      init.py        # pm init — Docker setup + API key prompt
-      doctor.py      # pm doctor — health checks
-      state.py       # active repo tracking via ~/.polymath/.env
+      init.py           # pm init
+      doctor.py         # pm doctor
+      state.py          # active repo tracking
 ```
 
-**Data stores:**
-- `~/.polymath/` — config, docker-compose, .env
-- `~/.polymath/repos/` — cloned GitHub repos
-- Postgres (port 5433) — repo metadata, file records, chunks, conversation history
-- Qdrant (port 6334) — vector embeddings for semantic search
+Data stored in `~/.polymath/`:
+
+```
+~/.polymath/
+  .env                  # config and API keys
+  polymath.db           # SQLite database
+  qdrant_data/          # local vector store
+  repos/                # cloned GitHub repos
+```
 
 ---
 
 ## Security
 
-Polymath is designed with privacy as a first principle.
-
-- **Code stays local** — indexing runs entirely on your machine
-- **Vectors stay local** — Qdrant runs in Docker on your machine
-- **Only snippets leave** — when you ask a question, the relevant code chunks (not your entire codebase) are sent to Gemini to generate the answer
-- **No accounts** — no login, no tracking, no telemetry
-- **Private repos** — clone them yourself, `pm cd` the local path. Nothing is uploaded
-
-If you need 100% air-gapped operation, swap Gemini for a local Ollama model — only the `ask.py` file needs changing.
-
----
-
-## Configuration
-
-Polymath stores all config in `~/.polymath/.env`:
-
-```env
-DATABASE_URL=postgresql://polymath:polymath@localhost:5433/polymath
-QDRANT_HOST=localhost
-QDRANT_PORT=6334
-GEMINI_API_KEY=your-key-here
-ACTIVE_REPO_ID=1
-ACTIVE_REPO_NAME=myproject
-```
-
-Get a free Gemini API key at [aistudio.google.com](https://aistudio.google.com).
+- Code stays local — indexing runs entirely on your machine
+- Vectors stay local — Qdrant runs embedded, no server
+- Only snippets leave — relevant code chunks sent to LLM for generation
+- No accounts — no login, no tracking, no telemetry
+- Private repos — clone locally, `pm cd` the path, nothing uploaded
+- Ollama mode — 100% offline after initial indexing
 
 ---
 
 ## Troubleshooting
 
-**`pm init` fails with Docker error**
-Make sure Docker Desktop is running before running `pm init`.
+**Python version error**
 
-**`pm doctor` shows Postgres not running**
-Run `pm init` again — it will restart the Docker containers without overwriting your config.
+Polymath requires Python 3.11+. Use pipx which handles this automatically:
 
-**Python version error during install**
-Use pipx instead:
 ```bash
 brew install pipx
 pipx install polymath-cli
 ```
 
 **Command not found after install**
-Add pipx to your PATH:
+
 ```bash
 pipx ensurepath
 source ~/.zshrc
+pm --version
+```
+
+**Ollama not responding**
+
+```bash
+ollama serve           # start Ollama
+ollama pull codellama  # make sure model is downloaded
+pm doctor              # verify everything is green
+```
+
+**Rate limit on Gemini free tier**
+
+Free tier allows 20 questions/day. Enable billing at [aistudio.google.com](https://aistudio.google.com) for unlimited usage. Costs essentially nothing for personal use (~$0.15 per million tokens).
+
+Alternatively switch to Ollama for unlimited offline usage:
+
+```bash
+pm config LLM_PROVIDER ollama
+```
+
+**Re-initialize config**
+
+```bash
+rm ~/.polymath/.env
+pm init
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] Tree-sitter AST chunking — chunk at function/class boundaries for better context
-- [ ] Multi-query RAG Fusion — generate query variations for better retrieval
-- [ ] `pm share` — generate shareable links for public repos
-- [ ] Web interface — browser-based chat UI
-- [ ] Ollama support — 100% offline mode with local LLMs
-- [ ] GitHub OAuth — index private repos without cloning manually
-- [ ] VS Code extension
+- Tree-sitter AST chunking — chunk at function/class boundaries
+- Multi-query RAG Fusion — better retrieval quality
+- VS Code extension
+- Homebrew formula
+- Web interface
 
 ---
 
@@ -307,7 +312,7 @@ source ~/.zshrc
 ```bash
 git clone https://github.com/Samarthpande1510/Polymath
 cd Polymath
-uv install
+uv sync
 pm init
 pm cd .
 pm ask "how does the indexer work?"
@@ -317,10 +322,4 @@ pm ask "how does the indexer work?"
 
 ## License
 
-MIT — do whatever you want with it.
-
----
-
-<div align="center">
-Built with Python, Qdrant, PostgreSQL, BGE embeddings, and Gemini 2.5 Flash.
-</div>
+MIT

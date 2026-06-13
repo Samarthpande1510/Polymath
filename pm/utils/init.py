@@ -45,14 +45,21 @@ def init():
         env_content = f"LLM_PROVIDER={provider}\n"
 
         if provider == "ollama":
-            model = typer.prompt("Ollama model to use", default="llama3.2")
+            console.print("\n[bold]Recommended models for code Q&A:[/bold]")
+            console.print("  [cyan]codellama[/cyan]     — best for code explanation (4GB)")
+            console.print("  [cyan]qwen2.5-coder[/cyan] — excellent for code, fast (4GB)")
+            console.print("  [cyan]mistral[/cyan]        — great general purpose (4GB)")
+            console.print("  [cyan]llama3.2:1b[/cyan]   — tiny and fast (1GB)")
+            console.print()
+            model = typer.prompt("Ollama model to use", default="codellama")
             env_content += f"OLLAMA_MODEL={model}\n"
-            console.print("[yellow]Make sure Ollama is installed and running:[/yellow]")
-            console.print("[yellow]  brew install ollama[/yellow]")
-            console.print(f"[yellow]  ollama pull {model}[/yellow]")
-            console.print("[yellow]  ollama serve[/yellow]")
+            console.print(f"\n[yellow]Setup commands:[/yellow]")
+            console.print(f"  brew install ollama")
+            console.print(f"  ollama pull {model}")
+            console.print(f"  ollama serve")
             console.print()
             console.print("[bold]Note:[/bold] You still need a Gemini API key for indexing (embeddings).")
+            console.print("[dim]Embeddings only run once when you index a repo — after that it's fully offline.[/dim]")
             gemini_key = typer.prompt("Enter your Gemini API key (get one free at aistudio.google.com)")
             with console.status("[bold green]Validating API key..."):
                 if not validate_gemini_key(gemini_key):

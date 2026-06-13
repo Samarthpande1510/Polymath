@@ -42,7 +42,6 @@ def index_repo(path: str, url: str = None) -> Repo:
                     progress.advance(task)
                     continue
                 
-                # batch embed all chunks in this file at once
                 texts = [chunk["content"] for chunk in chunks]
                 vectors = get_embeddings_batch(texts)
                 

@@ -35,7 +35,8 @@ def crawl(root: Path) -> list[Path]:
             continue
         if any(part in SKIP_DIRS for part in path.parts): 
             continue
-
+        if path.suffix.lower() in SKIP_EXTENSIONS:
+            continue
         relative = path.relative_to(root)
         if gitignore.match_file(str(relative)):
             continue

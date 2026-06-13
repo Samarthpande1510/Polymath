@@ -4,6 +4,17 @@ from rich.console import Console
 app = typer.Typer(help="Polymath — ask anything about any codebase")
 console = Console()
 
+from importlib.metadata import version as pkg_version
+
+def version_callback(value: bool):
+    if value:
+        console.print("Polymath v0.1.7")
+        raise typer.Exit()
+
+@app.callback()
+def main(version: bool = typer.Option(None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version")):
+    pass
+
 @app.command()
 def init():
     """First time setup — spins up Docker, Postgres, Qdrant"""

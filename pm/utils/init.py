@@ -30,7 +30,30 @@ volumes:
   polymath_postgres:
   polymath_qdrant:
 """
-
+def run_migrations():
+    import time
+    time.sleep(3)
+    try:
+        import importlib.resources
+        package_dir = Path(__file__).parent.parent  
+        project_root = package_dir.parent
+        alembic_ini = project_root / "alembic.ini"
+        
+        result = subprocess.run(
+            ["alembic", "-c", str(alembic_ini), "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            cwd=str(package_dir)
+        )
+        if result.returncode != 0:
+            console.print(f"[red]✗ Migration failed: {result.stderr}[/red]")
+            return False
+        console.print("[green]✓ Database ready[/green]")
+        return True
+    except Exception as e:
+        console.print(f"[red]✗ Migration error: {e}[/red]")
+        return False
+    
 def init():
     first_time = not (config_file / "docker-compose.yml").exists()
     env_missing = not (config_file / ".env").exists()
@@ -62,5 +85,8 @@ GEMINI_API_KEY={gemini_key}
         else:
             console.print(f"[red]✗ Error: {result.stderr}[/red]")
         return
+
+    if first_time or env_missing:
+        run_migrations()
 
     console.print("[green]✓ Polymath ready![/green]")

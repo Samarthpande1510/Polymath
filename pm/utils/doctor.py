@@ -1,59 +1,46 @@
-import subprocess
 from rich.console import Console
-from dotenv import load_dotenv
 from pathlib import Path
-from sqlalchemy import create_engine
-import os
-import requests
+from sqlalchemy import create_engine, text
 
 console = Console()
 
-def load_env():
-    env_path = Path.home() / ".polymath" / ".env"
-    load_dotenv(env_path)
-
-def check_docker() -> bool:
-    result = subprocess.run(["docker", "ps"], capture_output=True, text=True)
-    if result.returncode == 0:
-        console.print("[green]✓ Docker is running[/green]")
-        return True
-    console.print("[red]✗ Docker is not running[/red]")
-    return False
-
-def check_postgres() -> bool:
+def check_sqlite() -> bool:
     try:
-        load_env() 
-        DATABASE_URL = os.getenv("DATABASE_URL")
-        if not DATABASE_URL:
-            console.print("[red]✗ Postgres: DATABASE_URL not set. Run 'pm init' first.[/red]")
+        db_path = Path.home() / ".polymath" / "polymath.db"
+        if not db_path.exists():
+            console.print("[red]✗ Database not found. Run 'pm init' first.[/red]")
             return False
-        engine = create_engine(DATABASE_URL)
+        engine = create_engine(f"sqlite:///{db_path}")
         with engine.connect() as conn:
-            console.print("[green]✓ Postgres is running[/green]")
-            return True
+            conn.execute(text("SELECT 1"))
+        console.print("[green]✓ Database is ready[/green]")
+        return True
     except Exception as e:
-        console.print(f"[red]✗ Postgres is not running: {e}[/red]")
+        console.print(f"[red]✗ Database error: {e}[/red]")
         return False
 
 def check_qdrant() -> bool:
     try:
-        response = requests.get("http://localhost:6334")
-        if response.status_code == 200:
-            console.print("[green]✓ Qdrant is running[/green]")
-            return True
-        console.print(f"[red]✗ Qdrant returned status {response.status_code}[/red]")
-        return False
+        from qdrant_client import QdrantClient
+        qdrant_path = str(Path.home() / ".polymath" / "qdrant_data")
+        client = QdrantClient(path=qdrant_path)
+        client.get_collections()
+        console.print("[green]✓ Qdrant is ready[/green]")
+        return True
     except Exception as e:
-        console.print(f"[red]✗ Qdrant is not running: {e}[/red]")
+        console.print(f"[red]✗ Qdrant error: {e}[/red]")
         return False
-    
+
+def check_env() -> bool:
+    env_path = Path.home() / ".polymath" / ".env"
+    if not env_path.exists():
+        console.print("[red]✗ Not initialized. Run 'pm init' first.[/red]")
+        return False
+    console.print("[green]✓ Config found[/green]")
+    return True
+
 def doctor():
-    load_env()
     console.print("\n[bold]Polymath Health Check[/bold]\n")
-    check_docker()
-    check_postgres()
+    check_env()
+    check_sqlite()
     check_qdrant()
-
-
-
-

@@ -1,16 +1,12 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 from pathlib import Path
 from pm.db.models import Base
-import os
+
+DATABASE_URL = f"sqlite:///{Path.home()}/.polymath/polymath.db"
 
 def _get_engine():
-    load_dotenv(Path.home() / ".polymath" / ".env")
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise RuntimeError("Polymath not initialized. Run 'pm init' first.")
-    return create_engine(url)
+    return create_engine(DATABASE_URL)
 
 def get_session():
     return sessionmaker(autoflush=False, autocommit=False, bind=_get_engine())()

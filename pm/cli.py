@@ -26,6 +26,23 @@ def doctor():
     """Check if everything is running correctly"""
     from pm.utils.doctor import doctor as polymath_doctor
     polymath_doctor()
+@app.command()
+def pwd():
+    """Show active repository path"""
+    from pm.utils.state import get_active_repo
+    from pm.db.database import LocalSession
+    from pm.db.queries import get_repo_by_name
+    db = LocalSession()
+    try:
+        active = get_active_repo()
+        if not active:
+            console.print("[red]✗ No active repo. Run 'pm cd' first.[/red]")
+            return
+        repo_id, repo_name = active
+        repo = get_repo_by_name(db, repo_name)
+        console.print(f"[green]{repo.path}[/green]")
+    finally:
+        db.close()
 
 @app.command()
 def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
@@ -33,7 +50,16 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
     from pm.indexer.indexer import index_repo
     from pathlib import Path
     import subprocess
+    from pathlib import Path
 
+    if not path.startswith("https://") and not path.startswith("git@"):
+        resolved = Path(path).resolve()
+    if not resolved.exists():
+        console.print(f"[red]✗ Directory not found: {path}[/red]")
+        return
+    if not resolved.is_dir():
+        console.print(f"[red]✗ Not a directory: {path}[/red]")
+        return
     if path.startswith("https://") or path.startswith("git@"):
         repo_name = path.rstrip("/").split("/")[-1].replace(".git", "")
         repos_dir = Path.home() / ".polymath" / "repos"

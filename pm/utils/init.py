@@ -1,5 +1,4 @@
 from pathlib import Path
-import subprocess
 from rich.console import Console
 import typer
 
@@ -7,86 +6,45 @@ console = Console()
 
 config_file = Path.home() / ".polymath"
 
-DOCKER_COMPOSE = """services:
-  polymath-db:
-    image: postgres:16
-    ports:
-      - "5433:5432"
-    environment:
-      POSTGRES_USER: polymath
-      POSTGRES_PASSWORD: polymath
-      POSTGRES_DB: polymath
-    volumes:
-      - polymath_postgres:/var/lib/postgresql/data
-
-  polymath-qdrant:
-    image: qdrant/qdrant
-    ports:
-      - "6334:6333"
-    volumes:
-      - polymath_qdrant:/qdrant/storage
-
-volumes:
-  polymath_postgres:
-  polymath_qdrant:
-"""
 def run_migrations():
-    import time
-    time.sleep(3)
     try:
-        import importlib.resources
-        package_dir = Path(__file__).parent.parent  
-        project_root = package_dir.parent
-        alembic_ini = project_root / "alembic.ini"
-        
-        result = subprocess.run(
-            ["alembic", "-c", str(alembic_ini), "upgrade", "head"],
-            capture_output=True,
-            text=True,
-            cwd=str(package_dir)
-        )
-        if result.returncode != 0:
-            console.print(f"[red]✗ Migration failed: {result.stderr}[/red]")
-            return False
+        from sqlalchemy import create_engine
+        from pm.db.models import Base
+        db_path = Path.home() / ".polymath" / "polymath.db"
+        engine = create_engine(f"sqlite:///{db_path}")
+        Base.metadata.create_all(engine)
         console.print("[green]✓ Database ready[/green]")
         return True
     except Exception as e:
-        console.print(f"[red]✗ Migration error: {e}[/red]")
+        console.print(f"[red]✗ Database error: {e}[/red]")
         return False
-    
+
+def validate_gemini_key(key: str) -> bool:
+    try:
+        from google import genai
+        client = genai.Client(api_key=key)
+        client.models.embed_content(
+            model="gemini-embedding-001",
+            contents="test"
+        )
+        return True
+    except Exception:
+        return False
+
 def init():
-    first_time = not (config_file / "docker-compose.yml").exists()
+    config_file.mkdir(parents=True, exist_ok=True)
     env_missing = not (config_file / ".env").exists()
 
-    if first_time or env_missing:
+    if env_missing:
         gemini_key = typer.prompt("Enter your Gemini API key (get one free at aistudio.google.com)")
-        config_file.mkdir(parents=True, exist_ok=True)
-        (config_file / "docker-compose.yml").write_text(DOCKER_COMPOSE)
-        env_content = f"""DATABASE_URL=postgresql://polymath:polymath@localhost:5433/polymath
-QDRANT_HOST=localhost
-QDRANT_PORT=6334
-GEMINI_API_KEY={gemini_key}
-"""
+        with console.status("[bold green]Validating API key..."):
+            if not validate_gemini_key(gemini_key):
+                console.print("[red]✗ Invalid API key. Get one free at aistudio.google.com[/red]")
+                return
+        console.print("[green]✓ API key valid[/green]")
+        env_content = f"GEMINI_API_KEY={gemini_key}\n"
         (config_file / ".env").write_text(env_content)
-        console.print("[bold green]First time setup — initializing Polymath...[/bold green]")
-    else:
-        console.print("[bold green]Starting Polymath services...[/bold green]")
 
-    with console.status("[bold green]Starting Docker containers..."):
-        result = subprocess.run(
-            ["docker", "compose", "-f", str(config_file / "docker-compose.yml"), "up", "-d"],
-            capture_output=True,
-            text=True
-        )
-
-    if result.returncode != 0:
-        if "Cannot connect to the Docker daemon" in result.stderr:
-            console.print("[red]✗ Docker is not running. Please start Docker Desktop and try again.[/red]")
-        else:
-            console.print(f"[red]✗ Error: {result.stderr}[/red]")
-        return
-
-    if first_time or env_missing:
-        run_migrations()
-
+    run_migrations()
     console.print("[green]✓ Polymath ready![/green]")
+    console.print("[yellow]Tip: Free tier allows 20 questions/day. Enable billing at aistudio.google.com for unlimited usage.[/yellow]")

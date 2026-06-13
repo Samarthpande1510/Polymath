@@ -95,6 +95,9 @@ CODE CONTEXT:
                 break
 
             except Exception as e:
+                if "API_KEY_INVALID" in str(e) or ("invalid" in str(e).lower() and "key" in str(e).lower()):
+                    console.print("[red]✗ Invalid Gemini API key. Run 'pm init' to update it.[/red]")
+                    return
                 if "503" in str(e) or "UNAVAILABLE" in str(e):
                     if attempt < 2:
                         console.print(f"[yellow]Gemini is busy, retrying in {2**attempt}s...[/yellow]")

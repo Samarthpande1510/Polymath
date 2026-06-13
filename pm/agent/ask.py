@@ -122,6 +122,15 @@ CODE CONTEXT:
                 break
 
             except Exception as e:
+                
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                    console.print("[red]✗ Gemini API quota exceeded.[/red]")
+                    console.print("[yellow]Options:[/yellow]")
+                    console.print("[yellow]  1. Wait until tomorrow (free tier resets daily)[/yellow]")
+                    console.print("[yellow]  2. Switch to Ollama: pm config LLM_PROVIDER ollama[/yellow]")
+                    console.print("[yellow]  3. Use a new API key: pm config GEMINI_API_KEY your-new-key[/yellow]")
+                    console.print("[yellow]  4. Enable billing at aistudio.google.com for unlimited usage[/yellow]")
+                    return
                 if "API_KEY_INVALID" in str(e) or ("invalid" in str(e).lower() and "key" in str(e).lower()):
                     console.print("[red]✗ Invalid Gemini API key. Run 'pm init' to update it.[/red]")
                     return

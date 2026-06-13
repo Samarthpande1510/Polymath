@@ -15,6 +15,7 @@ Polymath indexes your code into a local vector database and answers questions in
 
 ```
 pm cd <repo>
+  → clone repo to current directory (if URL)
   → crawl all files (respects .gitignore)
   → chunk code at 50-line boundaries
   → embed each chunk with Gemini embeddings
@@ -39,6 +40,7 @@ Embeddings and vector search run entirely on your machine. Only the question + r
 - Python 3.11+
 - Gemini API key — free at [aistudio.google.com](https://aistudio.google.com)
 - For Ollama mode: [Ollama](https://ollama.com) installed and running
+- Git (for cloning GitHub repos)
 
 No Docker. No Postgres. No extra services.
 
@@ -51,14 +53,14 @@ No Docker. No Postgres. No extra services.
 ```bash
 brew install pipx
 pipx install polymath-cli
-pm init
+pipx ensurepath
+source ~/.zshrc
 ```
 
 ### pip
 
 ```bash
 pip install polymath-cli
-pm init
 ```
 
 ### Binary (no Python needed)
@@ -67,31 +69,42 @@ Download `pm` from [GitHub Releases](https://github.com/Samarthpande1510/Polymat
 
 ```bash
 chmod +x pm
-mv pm /usr/local/bin/pm
-pm init
+sudo mv pm /usr/local/bin/pm
 ```
 
 ---
 
 ## First time setup
 
-Run once:
-
 ```bash
 pm init
 ```
 
-This asks you to choose an AI provider:
+This asks you to choose an AI provider and enter your API key. Everything is stored in `~/.polymath/`.
 
-```
-Choose AI provider for answering questions (gemini/ollama): gemini
-Enter your Gemini API key: ...
-✓ API key valid
-✓ Database ready
-✓ Polymath ready!
+```bash
+pm doctor    # verify everything is ready
 ```
 
-Everything is stored in `~/.polymath/`.
+---
+
+## Quick start
+
+```bash
+# index a GitHub repo — clones it to your current directory AND indexes it
+pm cd https://github.com/pallets/click
+
+# index a local project
+pm cd .
+pm cd /path/to/your/project
+
+# ask questions
+pm ask "how does authentication work?"
+pm ask "where is the database connection set up?"
+
+# ask follow up questions — Polymath remembers context
+pm ask "what happens if the connection fails?"
+```
 
 ---
 
@@ -102,11 +115,21 @@ Everything is stored in `~/.polymath/`.
 Uses Gemini 2.5 Flash for generation and Gemini embeddings for indexing.
 
 - One API key, free at [aistudio.google.com](https://aistudio.google.com)
-- Free tier: 20 questions/day per key
-- Enable billing for unlimited usage — costs ~$0 for personal use
+- Free tier: 20 requests/day
+- Enable billing for unlimited usage at essentially $0 for personal use
 
 ```bash
 pm init   # choose gemini
+```
+
+If your quota runs out:
+
+```bash
+# option 1 — use a new API key
+pm config GEMINI_API_KEY your-new-key
+
+# option 2 — switch to Ollama
+pm config LLM_PROVIDER ollama
 ```
 
 ### Ollama (fully offline)
@@ -121,25 +144,26 @@ Recommended models for code Q&A:
 
 | Model | Size | Best for |
 |-------|------|----------|
-| `codellama` | 4GB | Code explanation, best quality |
-| `qwen2.5-coder:1.5b` | 1GB | Code focused, fast |
-| `mistral` | 4GB | General purpose, good at instructions |
+| `qwen2.5-coder:7b` | 4GB | Best for code, excellent quality |
+| `qwen2.5-coder:1.5b` | 1GB | Code focused, fast and small |
+| `mistral:7b` | 4GB | Great general purpose |
 | `llama3.2:1b` | 1GB | Tiny and fast |
 
+Avoid `codellama` — poor instruction following leads to hallucinations.
+
 ```bash
-ollama pull codellama
-pm config OLLAMA_MODEL codellama
-pm ask "how does authentication work?"
+ollama pull qwen2.5-coder:7b
+pm config OLLAMA_MODEL qwen2.5-coder:7b
 ```
 
-Note: Ollama mode still uses Gemini embeddings for indexing (`pm cd`). Embeddings only run once per repo — after that, everything is fully offline.
+Note: Ollama mode still uses Gemini embeddings for indexing. Embeddings only run once per repo — after that everything is fully offline.
 
-Switch providers anytime:
+Switch providers or models anytime:
 
 ```bash
 pm config LLM_PROVIDER ollama
 pm config LLM_PROVIDER gemini
-pm config OLLAMA_MODEL codellama
+pm config OLLAMA_MODEL qwen2.5-coder:7b
 pm config GEMINI_API_KEY your-new-key
 ```
 
@@ -156,15 +180,23 @@ pm doctor                  # check database, Qdrant, Ollama health
 
 ### Indexing
 
+`pm cd` with a GitHub URL clones the repo directly into your current directory and indexes it — you get the code AND the intelligence in one command.
+
 ```bash
+pm cd https://github.com/user/repo          # clone to current dir + index
 pm cd .                                     # index current directory
 pm cd /path/to/project                      # index any local path
-pm cd https://github.com/user/repo          # clone and index a public repo
 pm refresh                                  # re-index the active repo
-pm rm <repo-name>                           # remove an indexed repo
 pm ls                                       # list all indexed repos
 pm status                                   # show active repo and stats
 pm pwd                                      # show active repo path
+```
+
+### Removing repos
+
+```bash
+pm rm <repo-name>                           # remove from index only
+pm rm <repo-name> -r                        # remove from index AND delete folder from disk
 ```
 
 ### Asking questions
@@ -198,8 +230,9 @@ pm export                                   # copy conversation to clipboard
 
 ```bash
 pm config LLM_PROVIDER ollama
-pm config OLLAMA_MODEL codellama
-pm config GEMINI_API_KEY your-key
+pm config LLM_PROVIDER gemini
+pm config OLLAMA_MODEL qwen2.5-coder:7b
+pm config GEMINI_API_KEY your-new-key
 ```
 
 ---
@@ -235,7 +268,6 @@ Data stored in `~/.polymath/`:
   .env                  # config and API keys
   polymath.db           # SQLite database
   qdrant_data/          # local vector store
-  repos/                # cloned GitHub repos
 ```
 
 ---
@@ -248,6 +280,14 @@ Data stored in `~/.polymath/`:
 - No accounts — no login, no tracking, no telemetry
 - Private repos — clone locally, `pm cd` the path, nothing uploaded
 - Ollama mode — 100% offline after initial indexing
+
+---
+
+## Platform support
+
+- macOS — fully supported
+- Linux — should work, not fully tested
+- Windows — supported, requires Git for Windows for GitHub URL cloning
 
 ---
 
@@ -273,19 +313,25 @@ pm --version
 **Ollama not responding**
 
 ```bash
-ollama serve           # start Ollama
-ollama pull codellama  # make sure model is downloaded
-pm doctor              # verify everything is green
+ollama serve
+ollama pull qwen2.5-coder:7b
+pm doctor
 ```
 
-**Rate limit on Gemini free tier**
-
-Free tier allows 20 questions/day. Enable billing at [aistudio.google.com](https://aistudio.google.com) for unlimited usage. Costs essentially nothing for personal use (~$0.15 per million tokens).
-
-Alternatively switch to Ollama for unlimited offline usage:
+**Gemini quota exceeded during indexing**
 
 ```bash
-pm config LLM_PROVIDER ollama
+pm config GEMINI_API_KEY your-new-key
+# or enable billing at aistudio.google.com
+# or switch to Ollama (still needs Gemini for embeddings)
+```
+
+**Gemini quota exceeded during pm ask**
+
+```bash
+pm config LLM_PROVIDER ollama   # switch to fully offline generation
+# or
+pm config GEMINI_API_KEY your-new-key
 ```
 
 **Re-initialize config**
@@ -294,6 +340,10 @@ pm config LLM_PROVIDER ollama
 rm ~/.polymath/.env
 pm init
 ```
+
+**Windows: Git not found**
+
+Download Git from [git-scm.com/download/win](https://git-scm.com/download/win) and restart your terminal.
 
 ---
 

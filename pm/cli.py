@@ -56,15 +56,16 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
         if not shutil.which("git"):
             console.print("[red]✗ Git is not installed. Download from https://git-scm.com/download/win[/red]")
             return
-        
+
         repo_name = path.rstrip("/").split("/")[-1].replace(".git", "")
-        repos_dir = Path.home() / ".polymath" / "repos"
-        repos_dir.mkdir(parents=True, exist_ok=True)
-        clone_path = repos_dir / repo_name
+        
+        # clone to current working directory
+        clone_path = Path.cwd() / repo_name
+
         if clone_path.exists():
-            console.print(f"[yellow]'{repo_name}' already cloned — indexing.[/yellow]")
+            console.print(f"[yellow]'{repo_name}' already exists here — indexing.[/yellow]")
         else:
-            console.print(f"[bold]Cloning [green]{repo_name}[/green]...[/bold]")
+            console.print(f"[bold]Cloning [green]{repo_name}[/green] into current directory...[/bold]")
             result = subprocess.run(
                 ["git", "clone", path, str(clone_path)],
                 capture_output=True,
@@ -73,8 +74,9 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
             if result.returncode != 0:
                 console.print(f"[red]✗ Clone failed: {result.stderr}[/red]")
                 return
-            console.print(f"[green]✓ Cloned to ~/.polymath/repos/{repo_name}[/green]")
-        index_repo(str(clone_path), url=path)
+            console.print(f"[green]✓ Cloned to {clone_path}[/green]")
+
+        index_repo(str(clone_path.resolve()), url=path)
     else:
         resolved = Path(path).resolve()
         if not resolved.exists():
@@ -129,21 +131,44 @@ def status():
         db.close()
 
 @app.command()
-def rm(repo: str = typer.Argument(..., help="Repo name to remove")):
+def rm(
+    repo: str = typer.Argument(..., help="Repo name or path to remove"),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Also delete the folder from disk")
+):
     """Remove an indexed repository"""
     from pm.db.database import LocalSession
-    from pm.db.queries import get_repo_by_name, delete_repo_data, delete_repo
+    from pm.db.queries import get_repo_by_name, get_repo_by_path, delete_repo_data, delete_repo
     from pm.vector.store import delete_repo_vectors
+    from pathlib import Path
+    import shutil
+
     db = LocalSession()
     try:
         repo_record = get_repo_by_name(db, repo)
         if not repo_record:
+            repo_record = get_repo_by_path(db, str(Path(repo).resolve()))
+        if not repo_record:
             console.print(f"[red]✗ Repo '{repo}' not found. Run 'pm ls' to see indexed repos.[/red]")
             return
+
+        repo_path = repo_record.path
         delete_repo_data(db, repo_record.id)
         delete_repo(db, repo_record.id)
-        delete_repo_vectors(repo_record.id)
-        console.print(f"[green]✓ Removed '{repo}' successfully[/green]")
+        try:
+            delete_repo_vectors(repo_record.id)
+        except Exception:
+            pass
+
+        if recursive:
+            path = Path(repo_path)
+        if path.exists():
+            try:
+                shutil.rmtree(path)
+                console.print(f"[green]✓ Removed '{repo}' from index and deleted folder[/green]")
+            except PermissionError:
+                console.print(f"[yellow]✓ Removed from index but could not delete folder — close any open files first[/yellow]")
+        else:
+            console.print(f"[yellow]✓ Removed '{repo}' from index (folder not found on disk)[/yellow]")
     finally:
         db.close()
 

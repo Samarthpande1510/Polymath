@@ -43,7 +43,17 @@ def index_repo(path: str, url: str = None) -> Repo:
                     continue
                 
                 texts = [chunk["content"] for chunk in chunks]
-                vectors = get_embeddings_batch(texts)
+                try:
+                    vectors = get_embeddings_batch(texts)
+                except Exception as e:
+                    if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                        console.print("\n[red]✗ Gemini API quota exceeded during indexing.[/red]")
+                        console.print("[yellow]  1. Wait until tomorrow (free tier resets daily)[/yellow]")
+                        console.print("[yellow]  2. Use a new API key: pm config GEMINI_API_KEY your-new-key[/yellow]")
+                        console.print("[yellow]  3. Enable billing at aistudio.google.com for unlimited usage[/yellow]")
+                        db.rollback()
+                        return None
+                    raise e
                 
                 for chunk, vector in zip(chunks, vectors):
                     chunk_record = create_chunk(

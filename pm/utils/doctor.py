@@ -1,6 +1,7 @@
 from rich.console import Console
 from pathlib import Path
 from sqlalchemy import create_engine, text
+import os
 
 console = Console()
 
@@ -39,8 +40,27 @@ def check_env() -> bool:
     console.print("[green]✓ Config found[/green]")
     return True
 
+def check_ollama() -> bool:
+    try:
+        import requests
+        response = requests.get("http://localhost:11434")
+        if response.status_code == 200:
+            console.print("[green]✓ Ollama is running[/green]")
+            return True
+        console.print("[red]✗ Ollama not responding. Run: ollama serve[/red]")
+        return False
+    except Exception:
+        console.print("[red]✗ Ollama is not running. Run: ollama serve[/red]")
+        return False
+
 def doctor():
+    from dotenv import load_dotenv
+    load_dotenv(Path.home() / ".polymath" / ".env")
+    provider = os.getenv("LLM_PROVIDER", "gemini")
+
     console.print("\n[bold]Polymath Health Check[/bold]\n")
     check_env()
     check_sqlite()
     check_qdrant()
+    if provider == "ollama":
+        check_ollama()

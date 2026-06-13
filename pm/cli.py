@@ -343,6 +343,16 @@ def export():
 def share():
     """Generate shareable link for active repo"""
     console.print("[green]Coming soon — web interface in development[/green]")
-
+@app.command()
+def config(key: str = typer.Argument(...), value: str = typer.Argument(...)):
+    """Update a config value"""
+    from pathlib import Path
+    env_path = Path.home() / ".polymath" / ".env"
+    lines = env_path.read_text().splitlines()
+    lines = [l for l in lines if not l.startswith(key)]
+    lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(lines))
+    console.print(f"[green]✓ {key} set to {value}[/green]")
+    
 if __name__ == "__main__":
     app()

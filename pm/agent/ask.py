@@ -8,16 +8,26 @@ from pm.db.database import LocalSession
 from pm.vector.store import get_embedding, search
 from rich.markdown import Markdown
 from rich.live import Live
-from google import genai
-from google.genai import types
 import time
 
 console = Console()
-load = Path.home() / ".polymath" / ".env"
+
+def _get_provider():
+    load_dotenv(Path.home() / ".polymath" / ".env")
+    return os.getenv("LLM_PROVIDER", "gemini")
 
 def _get_client():
     load_dotenv(Path.home() / ".polymath" / ".env")
-    return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    provider = _get_provider()
+    if provider == "ollama":
+        import openai
+        return openai.OpenAI(
+            base_url="http://localhost:11434/v1",
+            api_key="ollama"
+        ), "ollama"
+    else:
+        from google import genai
+        return genai.Client(api_key=os.getenv("GEMINI_API_KEY")), "gemini"
 
 def ask(question: str):
     db = LocalSession()
@@ -77,18 +87,35 @@ CODE CONTEXT:
 {context}{history_text}"""
 
                 full_text = ""
-                client = _get_client()
+                client, provider = _get_client()
+
                 with Live(console=console, refresh_per_second=10) as live:
-                    for chunk in client.models.generate_content_stream(
-                        model="gemini-2.5-flash",
-                        contents=question,
-                        config=types.GenerateContentConfig(
-                            system_instruction=prompt,
+                    if provider == "ollama":
+                        model = os.getenv("OLLAMA_MODEL", "llama3.2")
+                        response = client.chat.completions.create(
+                            model=model,
+                            messages=[
+                                {"role": "system", "content": prompt},
+                                {"role": "user", "content": question}
+                            ],
+                            stream=True
                         )
-                    ):
-                        if chunk.text:
-                            full_text += chunk.text
-                            live.update(Markdown(full_text))
+                        for chunk in response:
+                            if chunk.choices[0].delta.content:
+                                full_text += chunk.choices[0].delta.content
+                                live.update(Markdown(full_text))
+                    else:
+                        from google.genai import types
+                        for chunk in client.models.generate_content_stream(
+                            model="gemini-2.5-flash",
+                            contents=question,
+                            config=types.GenerateContentConfig(
+                                system_instruction=prompt,
+                            )
+                        ):
+                            if chunk.text:
+                                full_text += chunk.text
+                                live.update(Markdown(full_text))
 
                 save_conversation(db, repo_id=repo_id, role="user", content=question)
                 save_conversation(db, repo_id=repo_id, role="assistant", content=full_text)
@@ -103,6 +130,9 @@ CODE CONTEXT:
                         console.print(f"[yellow]Gemini is busy, retrying in {2**attempt}s...[/yellow]")
                         time.sleep(2**attempt)
                         continue
+                if "Connection refused" in str(e) or "11434" in str(e):
+                    console.print("[red]✗ Ollama is not running. Start it with: ollama serve[/red]")
+                    return
                 console.print(f"[red]✗ Error: {e}[/red]")
                 break
     finally:

@@ -43,9 +43,12 @@ def pwd():
         console.print(f"[green]{repo.path}[/green]")
     finally:
         db.close()
-
+        
 @app.command()
-def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
+def cd(
+    path: str = typer.Argument(..., help="URL or local path to repo"),
+    index_only: bool = typer.Option(False, "--index-only", "-i", help="Clone to ~/.polymath/repos instead of current directory")
+):
     """Set active repository"""
     from pm.indexer.indexer import index_repo
     from pathlib import Path
@@ -58,14 +61,21 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
             return
 
         repo_name = path.rstrip("/").split("/")[-1].replace(".git", "")
-        
-        # clone to current working directory
-        clone_path = Path.cwd() / repo_name
+
+        if index_only:
+            # clone to hidden folder — just for querying
+            clone_path = Path.home() / ".polymath" / "repos" / repo_name
+            clone_path.parent.mkdir(parents=True, exist_ok=True)
+            location_msg = f"~/.polymath/repos/{repo_name}"
+        else:
+            # clone to current directory — user gets the files
+            clone_path = Path.cwd() / repo_name
+            location_msg = str(clone_path)
 
         if clone_path.exists():
-            console.print(f"[yellow]'{repo_name}' already exists here — indexing.[/yellow]")
+            console.print(f"[yellow]'{repo_name}' already exists — indexing.[/yellow]")
         else:
-            console.print(f"[bold]Cloning [green]{repo_name}[/green] into current directory...[/bold]")
+            console.print(f"[bold]Cloning [green]{repo_name}[/green]...[/bold]")
             result = subprocess.run(
                 ["git", "clone", path, str(clone_path)],
                 capture_output=True,
@@ -74,7 +84,7 @@ def cd(path: str = typer.Argument(..., help="URL or local path to repo")):
             if result.returncode != 0:
                 console.print(f"[red]✗ Clone failed: {result.stderr}[/red]")
                 return
-            console.print(f"[green]✓ Cloned to {clone_path}[/green]")
+            console.print(f"[green]✓ Cloned to {location_msg}[/green]")
 
         index_repo(str(clone_path.resolve()), url=path)
     else:
